@@ -142,6 +142,36 @@ describe('awaitWechatArticle', () => {
         expect(wait).not.toHaveBeenCalled();
     });
 
+    it('waits through the empty render between verification and article', async () => {
+        const extract = vi.fn()
+            .mockResolvedValueOnce(VERIFICATION_PAYLOAD)
+            .mockResolvedValueOnce({ title: '', errorHint: '', contentHtml: '' })
+            .mockResolvedValueOnce(ARTICLE_PAYLOAD);
+        const wait = vi.fn().mockResolvedValue(undefined);
+        expect(await awaitWechatArticle(extract, wait)).toBe(ARTICLE_PAYLOAD);
+        expect(wait).toHaveBeenCalledTimes(2);
+    });
+
+    it('bounds the last wait and reports unresolved empty renders as verification timeout', async () => {
+        vi.useFakeTimers();
+        try {
+            const extract = vi.fn().mockResolvedValueOnce(VERIFICATION_PAYLOAD)
+                .mockResolvedValue({ title: '', errorHint: '', contentHtml: '' });
+            const wait = vi.fn(async seconds => { vi.advanceTimersByTime(seconds * 1000); });
+            expect(await awaitWechatArticle(extract, wait, { timeoutMs: 500 })).toBe(VERIFICATION_PAYLOAD);
+            expect(wait).toHaveBeenCalledExactlyOnceWith(0.5);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('stops on a terminal access error after verification', async () => {
+        const terminal = { errorHint: 'article deleted', contentHtml: '' };
+        const extract = vi.fn().mockResolvedValueOnce(VERIFICATION_PAYLOAD).mockResolvedValue(terminal);
+        expect(await awaitWechatArticle(extract, vi.fn())).toBe(terminal);
+        expect(extract).toHaveBeenCalledTimes(2);
+    });
+
     it('honours the custom poll interval', async () => {
         const extract = vi.fn()
             .mockResolvedValueOnce(VERIFICATION_PAYLOAD)

@@ -230,14 +230,15 @@ export async function awaitWechatArticle(extract, wait, options = {}) {
     let data = await extract();
     if (data?.errorHint !== 'environment verification required')
         return data;
+    const verification = data;
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-        await wait(pollIntervalS);
+        await wait(Math.min(pollIntervalS, (deadline - Date.now()) / 1000));
         data = await extract();
-        if (data?.errorHint !== 'environment verification required')
-            return data;
+        if (data?.errorHint === 'environment verification required') continue;
+        if (data?.errorHint || data?.contentHtml) return data;
     }
-    return data;
+    return verification;
 }
 // ============================================================
 // CLI Registration
