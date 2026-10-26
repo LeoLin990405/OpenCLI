@@ -176,6 +176,29 @@ describe('boundingRectResolvedJs runtime behavior', () => {
     expect(out.y).toBeGreaterThanOrEqual(0); expect(out.y).toBeLessThan(40);
   });
 
+  it('does not trust a sibling overlay inside the clickable ancestor', () => {
+    const container = makeEl({ tag: 'div', rect: { left: 0, top: 0, width: 200, height: 100 }, onclick: true });
+    const chip = makeEl({ tag: 'div', rect: { left: 10, top: 10, width: 40, height: 20 } });
+    const overlay = makeEl({ tag: 'div', rect: { left: 10, top: 10, width: 40, height: 20 } });
+    chip.parentElement = container; overlay.parentElement = container;
+    container.children = [chip, overlay];
+    expect(runRect(chip, () => overlay).hit).toBe('other');
+    const recovered = runRect(chip, (x, y) => x === 30 && y === 20 ? overlay : chip);
+    expect(recovered.hit).toBe('target');
+    expect([recovered.x, recovered.y]).not.toEqual([30, 20]);
+  });
+
+  it('keeps all probes within a tiny resolved box', () => {
+    const chip = makeEl({ tag: 'button', rect: { left: 10, top: 10, width: 2, height: 2 } });
+    const overlay = makeEl({ tag: 'div', rect: { left: 0, top: 0, width: 100, height: 100 } });
+    const points: number[][] = [];
+    runRect(chip, (x, y) => { points.push([x, y]); return overlay; });
+    for (const [x, y] of points) {
+      expect(x).toBeGreaterThanOrEqual(10); expect(x).toBeLessThan(12);
+      expect(y).toBeGreaterThanOrEqual(10); expect(y).toBeLessThan(12);
+    }
+  });
+
   it('keeps the ancestor centre when the resolved element has no measurable box', () => {
     // a zero-rect icon inside a big clickable card cannot be hit-tested, so the
     // old aim (the ancestor's centre) is the only usable point.
